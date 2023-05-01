@@ -696,6 +696,24 @@ func WsAllMarketsStatServe(handler WsAllMarketsStatHandler, errHandler ErrHandle
 	return wsServe(cfg, wsHandler, errHandler)
 }
 
+type RollingWindow string
+
+// WsAllMarketsStatServe serve websocket that push 24hr statistics for all market every second
+func WsAllMarketsRollingWindowStatServe(window string, handler WsAllMarketsStatHandler, errHandler ErrHandler) (doneC, stopC chan struct{}, err error) {
+	endpoint := fmt.Sprintf("%s/!ticker_%s@arr", getWsEndpoint(), window)
+	cfg := newWsConfig(endpoint)
+	wsHandler := func(message []byte) {
+		var event WsAllMarketsStatEvent
+		err := json.Unmarshal(message, &event)
+		if err != nil {
+			errHandler(err)
+			return
+		}
+		handler(event)
+	}
+	return wsServe(cfg, wsHandler, errHandler)
+}
+
 // WsAllMarketsStatEvent define array of websocket market statistics events
 type WsAllMarketsStatEvent []*WsMarketStatEvent
 
