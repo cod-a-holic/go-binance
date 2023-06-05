@@ -698,9 +698,25 @@ func WsAllMarketsStatServe(handler WsAllMarketsStatHandler, errHandler ErrHandle
 
 type RollingWindow string
 
-// WsAllMarketsStatServe serve websocket that push 24hr statistics for all market every second
+// WsAllMarketsRollingWindowStatServe serve websocket that push window statistics for all market every second
 func WsAllMarketsRollingWindowStatServe(window string, handler WsAllMarketsStatHandler, errHandler ErrHandler) (doneC, stopC chan struct{}, err error) {
 	endpoint := fmt.Sprintf("%s/!ticker_%s@arr", getWsEndpoint(), window)
+	cfg := newWsConfig(endpoint)
+	wsHandler := func(message []byte) {
+		var event WsAllMarketsStatEvent
+		err := json.Unmarshal(message, &event)
+		if err != nil {
+			errHandler(err)
+			return
+		}
+		handler(event)
+	}
+	return wsServe(cfg, wsHandler, errHandler)
+}
+
+// WsIndividualRollingWindowStatServe serve websocket that push window statistics for individual symbol every second
+func WsIndividualRollingWindowStatServe(window, symbol string, handler WsAllMarketsStatHandler, errHandler ErrHandler) (doneC, stopC chan struct{}, err error) {
+	endpoint := fmt.Sprintf("%s/%s@ticker_%s", getWsEndpoint(), symbol, window)
 	cfg := newWsConfig(endpoint)
 	wsHandler := func(message []byte) {
 		var event WsAllMarketsStatEvent
