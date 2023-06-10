@@ -661,6 +661,43 @@ func WsCombinedMarketStatServe(symbols []string, handler WsMarketStatHandler, er
 	return wsServe(cfg, wsHandler, errHandler)
 }
 
+// WsCombinedMarketWindowStatServe is similar to WsCombinedMarketStatServe, but it accepts a window parameter
+func WsCombinedMarketWindowStatServe(symbols []string, window string, handler WsMarketStatHandler, errHandler ErrHandler) (doneC, stopC chan struct{}, err error) {
+	endpoint := getCombinedEndpoint()
+	for s := range symbols {
+		endpoint += fmt.Sprintf("%s@ticker_%s", strings.ToLower(symbols[s]), window) + "/"
+	}
+	endpoint = endpoint[:len(endpoint)-1]
+	cfg := newWsConfig(endpoint)
+
+	wsHandler := func(message []byte) {
+		j, err := newJSON(message)
+		if err != nil {
+			errHandler(err)
+			return
+		}
+
+		stream := j.Get("stream").MustString()
+		data := j.Get("data").MustMap()
+
+		symbol := strings.Split(stream, "@")[0]
+
+		jsonData, _ := json.Marshal(data)
+
+		event := new(WsMarketStatEvent)
+		err = json.Unmarshal(jsonData, event)
+		if err != nil {
+			errHandler(err)
+			return
+		}
+
+		event.Symbol = strings.ToUpper(symbol)
+
+		handler(event)
+	}
+	return wsServe(cfg, wsHandler, errHandler)
+}
+
 // WsMarketStatServe serve websocket that push 24hr statistics for single market every second
 func WsMarketStatServe(symbol string, handler WsMarketStatHandler, errHandler ErrHandler) (doneC, stopC chan struct{}, err error) {
 	endpoint := fmt.Sprintf("%s/%s@ticker", getWsEndpoint(), strings.ToLower(symbol))
@@ -715,11 +752,11 @@ func WsAllMarketsRollingWindowStatServe(window string, handler WsAllMarketsStatH
 }
 
 // WsIndividualRollingWindowStatServe serve websocket that push window statistics for individual symbol every second
-func WsIndividualRollingWindowStatServe(window, symbol string, handler WsAllMarketsStatHandler, errHandler ErrHandler) (doneC, stopC chan struct{}, err error) {
+func WsIndividualRollingWindowStatServe(window, symbol string, handler WsMarketStatHandler, errHandler ErrHandler) (doneC, stopC chan struct{}, err error) {
 	endpoint := fmt.Sprintf("%s/%s@ticker_%s", getWsEndpoint(), symbol, window)
 	cfg := newWsConfig(endpoint)
 	wsHandler := func(message []byte) {
-		var event WsAllMarketsStatEvent
+		var event *WsMarketStatEvent
 		err := json.Unmarshal(message, &event)
 		if err != nil {
 			errHandler(err)
